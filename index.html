@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Network Graph with Corrected Arrow Direction</title>
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/modules/networkgraph.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+</head>
+<body>
+    <h1>Upload CSV to Generate Network Graph with Correct Arrows</h1>
+    <input type="file" id="csvFileInput" accept=".csv" />
+    <button id="exportButton">Download as PNG</button>
+    <button id="downloadCSVButton">Download Updated CSV</button>
+    
+    <h2>Add Edge to Network Graph</h2>
+    <input type="text" id="startNode" placeholder="Start Node" />
+    <input type="text" id="targetNode" placeholder="Target Node" />
+    <button id="addEdgeButton">Add Edge</button>
+    
+    <figure class="highcharts-figure">
+        <div id="container" style="width: 100%; height: 600px;"></div>
+    </figure>
+
+    <script>
+        document.getElementById('csvFileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('exportButton').addEventListener('click', downloadGraphAsPNG);
+        document.getElementById('addEdgeButton').addEventListener('click', addEdgeToGraph);
+        document.getElementById('downloadCSVButton').addEventListener('click', downloadUpdatedCSV);
+
+        let chart; // Global variable to hold the chart instance
+        let graphData = []; // Global variable to hold graph data
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const csvData = e.target.result;
+                    graphData = parseCSVToGraphData(csvData);
+                    renderNetworkGraph(graphData);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseCSVToGraphData(csv) {
+            const rows = csv.split('\n').filter(row => row.trim() !== ''); // Remove empty rows
+            const links = [];
+
+            rows.forEach((row, index) => {
+                if (index === 0) return; // Skip header row
+                const [source, target] = row.split(',').map(cell => cell.trim());
+                if (source && target) {
+                    links.push([source, target]); // Store the link
+                }
+            });
+
+            return links;
+        }
+
+        function renderNetworkGraph(data) {
+            chart = Highcharts.chart('container', {
+                chart: {
+                    type: 'networkgraph',
+                    height: '100%',
+                    events: {
+                        load: function () {
+                            const chart = this;
+                            chart.renderer.defs
+                                .element
+                                .innerHTML += `
+                                <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                                refX="7" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                                    <polygon points="0 0, 10 3.5, 0 7" style="fill:#666;"/>
+                                </marker>
+                            `;
+
+                            chart.series[0].data.forEach(function (point) {
+                                point.graphic.element.setAttribute("marker-end", "url(#arrowhead)");
+                            });
+                        }
+                    }
+                },
+                title: {
+                    text: 'Dynamic Network Graph'
+                },
+                plotOptions: {
+                    networkgraph: {
+                        keys: ['from', 'to'],
+                        layoutAlgorithm: {
+                            enableSimulation: true,
+                            friction: -0.9
+                        },
+                        link: {
+                            width: 2,
+                            color: '#666',
+                        }
+                    }
+                },
+                series: [{
+                    id: 'network-graph',
+                    data: data,
+                    dataLabels: {
+                        enabled: true,
+                        linkFormat: '{point.from} → {point.to}',
+                        style: {
+                            fontWeight: 'bold',
+                            fontSize: '12px'
+                        }
+                    },
+                    nodes: Array.from(new Set(data.flat())).map(id => ({
+                        id: id,
+                        marker: {
+                            radius: 10,
+                            fillColor: '#28a745'
+                        }
+                    }))
+                }]
+            });
+        }
+
+        function addEdgeToGraph() {
+            const startNode = document.getElementById('startNode').value.trim();
+            const targetNode = document.getElementById('targetNode').value.trim();
+
+            if (startNode && targetNode) {
+                // Add the new edge to the graph data
+                graphData.push([startNode, targetNode]);
+                
+                // Re-render the graph with the new edge
+                renderNetworkGraph(graphData);
+                
+                // Clear the input fields
+                document.getElementById('startNode').value = '';
+                document.getElementById('targetNode').value = '';
+            } else {
+                alert("Please enter both start and target nodes.");
+            }
+        }
+
+        function downloadGraphAsPNG() {
+            if (chart) {
+                chart.exportChart({
+                    type: 'image/png',
+                    options: {
+                        title: {
+                            text: 'Dynamic Network Graph'
+                        }
+                    }
+                });
+            } else {
+                alert("Please upload a CSV file first.");
+            }
+        }
+
+        function downloadUpdatedCSV() {
+            if (graphData.length > 0) {
+                const csvContent = "data:text/csv;charset=utf-8," 
+                    + "Source,Target\n" 
+                    + graphData.map(e => e.join(",")).join("\n");
+                
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "updated_graph_data.csv");
+                document.body.appendChild(link); // Required for FF
+
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert("No data to download.");
+            }
+        }
+    </script>
+</body>
+</html>

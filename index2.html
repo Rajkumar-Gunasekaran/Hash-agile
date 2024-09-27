@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Network Graph with Arrows</title>
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/modules/networkgraph.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+</head>
+<body>
+    <h1>Upload CSV to Generate Network Graph with Arrows</h1>
+    <input type="file" id="csvFileInput" accept=".csv" />
+    <figure class="highcharts-figure">
+        <div id="container" style="width: 100%; height: 600px;"></div>
+    </figure>
+
+    <script>
+        document.getElementById('csvFileInput').addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const csvData = e.target.result;
+                    const graphData = parseCSVToGraphData(csvData);
+                    renderNetworkGraph(graphData);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseCSVToGraphData(csv) {
+            const rows = csv.split('\n').filter(row => row.trim() !== ''); // Remove empty rows
+            const nodes = new Set();
+            const links = [];
+
+            rows.forEach((row, index) => {
+                if (index === 0) return; // Skip header row
+                const [source, target] = row.split(',').map(cell => cell.trim());
+                if (source && target) {
+                    nodes.add(source);
+                    nodes.add(target);
+                    links.push([source, target]); // Store the link
+                }
+            });
+
+            return links;
+        }
+
+        function renderNetworkGraph(data) {
+            Highcharts.addEvent(
+                Highcharts.Series,
+                'afterSetOptions',
+                function (e) {
+                    const nodes = {};
+
+                    if (this instanceof Highcharts.Series.types.networkgraph) {
+                        e.options.data.forEach(function (link) {
+                            const [source, target] = link;
+
+                            if (!nodes[source]) {
+                                nodes[source] = {
+                                    id: source,
+                                    marker: { radius: 20, fillColor: '#28a745' },  // Green color for the nodes
+                                    dataLabels: { enabled: true }
+                                };
+                            }
+
+                            if (!nodes[target]) {
+                                nodes[target] = {
+                                    id: target,
+                                    marker: { radius: 20, fillColor: '#28a745' },  // Green color for the nodes
+                                    dataLabels: { enabled: true }
+                                };
+                            }
+                        });
+
+                        e.options.nodes = Object.keys(nodes).map(id => nodes[id]);
+                    }
+                }
+            );
+
+            Highcharts.chart('container', {
+                chart: {
+                    type: 'networkgraph',
+                    height: '100%'
+                },
+                title: {
+                    text: 'Dynamic Network Graph with Arrows'
+                },
+                plotOptions: {
+                    networkgraph: {
+                        keys: ['from', 'to'],
+                        layoutAlgorithm: {
+                            enableSimulation: true,
+                            friction: -0.9
+                        },
+                        link: {
+                            width: 2,  // Line width for the links
+                            marker: {
+                                enabled: true, // Enable arrows for direction
+                                symbol: 'triangle',  // Arrow symbol
+                                width: 10,  // Arrow width
+                                height: 15  // Arrow height
+                            }
+                        },
+                        dataLabels: {
+                            enabled: true,
+                            linkFormat: '{point.from} → {point.to}', // Show node names and direction
+                            style: {
+                                fontSize: '0.8em',
+                                fontWeight: 'normal'
+                            }
+                        }
+                    }
+                },
+                series: [{
+                    id: 'network-graph',
+                    data: data,
+                    dataLabels: {
+                        enabled: true,
+                        textPath: {
+                            enabled: false
+                        },
+                        linkFormat: '{point.from} → {point.to}', // Show direction
+                        style: {
+                            fontWeight: 'bold',
+                            fontSize: '12px'
+                        }
+                    }
+                }]
+            });
+        }
+    </script>
+</body>
+</html>
